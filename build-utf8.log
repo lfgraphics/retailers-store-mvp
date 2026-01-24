@@ -1,0 +1,96 @@
+﻿
+> e-commerce@0.1.0 build D:\code space\e-commerce
+> next build "--turbopack"
+
+Γû▓ Next.js 16.1.4 (Turbopack)
+- Environments: .env.local
+
+  Creating an optimized production build ...
+Γ£ô Compiled successfully in 4.4s
+  Running TypeScript ...
+  Collecting page data using 11 workers ...
+  Generating static pages using 11 workers (0/42) ...
+  Generating static pages using 11 workers (10/42) 
+  Generating static pages using 11 workers (20/42) 
+  Generating static pages using 11 workers (31/42) 
+pnpm : ReferenceError: location is 
+not defined
+At line:1 char:1
++ pnpm build --turbopack > build.log 
+2>&1
++ ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~
+    + CategoryInfo          : NotSpe 
+   cified: (ReferenceError: locatio  
+  n is not defined:String) [], Rem   
+ oteException
+    + FullyQualifiedErrorId : Native 
+   CommandError
+ 
+    at o (D:\code space\e-commerce\.n
+ext\server\chunks\ssr\_242596d5._.js:
+1:2551)
+Γ¿» useSearchParams() should be 
+wrapped in a suspense boundary at 
+page "/shop". Read more: https://next
+js.org/docs/messages/missing-suspense
+-with-csr-bailout
+    at Q (D:\code space\e-commerce\.n
+ext\server\chunks\ssr\_6b65d5ba._.js:
+2:2111)
+    at o (D:\code space\e-commerce\.n
+ext\server\chunks\ssr\_6b65d5ba._.js:
+4:5283)
+    at p (D:\code space\e-commerce\.n
+ext\server\chunks\ssr\_a3d7d758._.js:
+1:3635)
+    at an (D:\code space\e-commerce\n
+ode_modules\.pnpm\next@16.1.4_@babel+
+core@7.2_795185d4d8aa919df0c6d7b1b45e
+f0b6\node_modules\next\dist\compiled\
+next-server\app-page-turbo.runtime.pr
+od.js:2:84360)
+    at ai (D:\code space\e-commerce\n
+ode_modules\.pnpm\next@16.1.4_@babel+
+core@7.2_795185d4d8aa919df0c6d7b1b45e
+f0b6\node_modules\next\dist\compiled\
+next-server\app-page-turbo.runtime.pr
+od.js:2:86179)
+    at al (D:\code space\e-commerce\n
+ode_modules\.pnpm\next@16.1.4_@babel+
+core@7.2_795185d4d8aa919df0c6d7b1b45e
+f0b6\node_modules\next\dist\compiled\
+next-server\app-page-turbo.runtime.pr
+od.js:2:107953)
+    at as (D:\code space\e-commerce\n
+ode_modules\.pnpm\next@16.1.4_@babel+
+core@7.2_795185d4d8aa919df0c6d7b1b45e
+f0b6\node_modules\next\dist\compiled\
+next-server\app-page-turbo.runtime.pr
+od.js:2:105368)
+    at aa (D:\code space\e-commerce\n
+ode_modules\.pnpm\next@16.1.4_@babel+
+core@7.2_795185d4d8aa919df0c6d7b1b45e
+f0b6\node_modules\next\dist\compiled\
+next-server\app-page-turbo.runtime.pr
+od.js:2:84712)
+    at ai (D:\code space\e-commerce\n
+ode_modules\.pnpm\next@16.1.4_@babel+
+core@7.2_795185d4d8aa919df0c6d7b1b45e
+f0b6\node_modules\next\dist\compiled\
+next-server\app-page-turbo.runtime.pr
+od.js:2:86228)
+    at ai (D:\code space\e-commerce\n
+ode_modules\.pnpm\next@16.1.4_@babel+
+core@7.2_795185d4d8aa919df0c6d7b1b45e
+f0b6\node_modules\next\dist\compiled\
+next-server\app-page-turbo.runtime.pr
+od.js:2:104708)
+Error occurred prerendering page 
+"/shop". Read more: https://nextjs.or
+g/docs/messages/prerender-error
+Export encountered an error on 
+/shop/page: /shop, exiting the build.
+Γ¿» Next.js build worker exited with 
+code: 1 and signal: null
+ΓÇëELIFECYCLEΓÇë Command failed with exit code 1.
