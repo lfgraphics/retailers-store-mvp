@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import Order from '@/models/Order';
-import '@/models/Customer'; // Ensure Customer model is registered
 import { requireRetailer } from '@/middleware/auth';
 import { ERROR_MESSAGES } from '@/lib/constants';
+import Customer from '@/models/Customer';
 
 // GET all orders with filters
 export async function GET(request: NextRequest) {
