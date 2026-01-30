@@ -72,11 +72,6 @@ const CustomerSchema = new Schema<ICustomer>(
   }
 );
 
-// Index for email lookup
-CustomerSchema.index({ email: 1 }, { sparse: true });
-// Index for phone lookup (already unique: true in schema, but good to be explicit)
-CustomerSchema.index({ phone: 1 });
-
 // Hash password before saving
 CustomerSchema.pre('save', async function () {
   if (!this.isModified('password')) {
