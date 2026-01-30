@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
+import mongoose from 'mongoose';
 import connectDB from '@/lib/mongodb';
 import Product from '@/models/Product';
 import Review from '@/models/Review';
+import '@/models/Customer'; // Ensure Customer model is registered for populate
 import { ERROR_MESSAGES } from '@/lib/constants';
 
 // GET single product with reviews (Public)
@@ -11,6 +13,14 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+    
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return NextResponse.json(
+        { error: 'Invalid product ID' },
+        { status: 400 }
+      );
+    }
+
     await connectDB();
 
     const product = await Product.findById(id);
@@ -41,10 +51,16 @@ export async function GET(
       },
       reviews,
     });
-  } catch (error) {
-    console.error('Get product error:', error);
+  } catch (error: any) {
+    console.error('Get product error details:', {
+      message: error.message,
+      stack: error.stack
+    });
     return NextResponse.json(
-      { error: ERROR_MESSAGES.SERVER_ERROR },
+      { 
+        error: ERROR_MESSAGES.SERVER_ERROR,
+        details: error.message
+      },
       { status: 500 }
     );
   }

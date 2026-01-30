@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import mongoose from 'mongoose';
 import connectDB from '@/lib/mongodb';
 import Order from '@/models/Order';
 import { requireAuth } from '@/middleware/auth';
@@ -11,6 +12,14 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return NextResponse.json(
+        { error: 'Invalid order ID' },
+        { status: 400 }
+      );
+    }
+
     await connectDB();
     const user = requireAuth(request);
 

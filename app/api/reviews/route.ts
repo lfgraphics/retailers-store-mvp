@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import Review from '@/models/Review';
+import '@/models/Customer'; // Ensure Customer model is registered
 import Order from '@/models/Order';
 import { requireCustomer } from '@/middleware/auth';
 import { reviewSchema } from '@/lib/validation';

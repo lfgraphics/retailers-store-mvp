@@ -1,6 +1,7 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, use, useCallback } from 'react';
+import Image from 'next/image';
 import { useCart } from '@/contexts/CartContext';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
@@ -32,7 +33,7 @@ interface Review {
 }
 
 export default function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = React.use(params);
+  const { id } = use(params);
   const { addItem } = useCart();
   const [product, setProduct] = useState<Product | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -40,17 +41,14 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
   const [quantity, setQuantity] = useState(1);
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
 
-  useEffect(() => {
-    fetchProduct();
-  }, [id]);
-
-  const fetchProduct = async () => {
+  const fetchProduct = useCallback(async () => {
     try {
       const res = await fetch(`/api/products/${id}`);
 
       if (!res.ok) {
-        console.error('Product fetch failed:', res.status);
-        throw new Error('Product not found');
+        const errorData = await res.json().catch(() => ({}));
+        console.error('Product fetch failed:', res.status, errorData);
+        throw new Error(errorData.details || errorData.error || 'Product not found');
       }
 
       const data = await res.json();
@@ -68,7 +66,11 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [id]);
+
+  useEffect(() => {
+    fetchProduct();
+  }, [fetchProduct]);
 
   const handleAddToCart = () => {
     if (product) {
@@ -116,12 +118,14 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
           {/* Image Gallery */}
           <div className="space-y-4">
             {/* Main Image */}
-            <div className="aspect-square rounded-lg bg-muted overflow-hidden">
+            <div className="relative aspect-square rounded-lg bg-muted overflow-hidden">
               {currentImage ? (
-                <img
+                <Image
                   src={currentImage}
                   alt={product.name}
-                  className="h-full w-full object-cover"
+                  fill
+                  className="object-cover"
+                  unoptimized
                 />
               ) : (
                 <div className="flex h-full items-center justify-center text-muted-foreground">
@@ -137,15 +141,17 @@ export default function ProductDetailPage({ params }: { params: Promise<{ id: st
                   <button
                     key={idx}
                     onClick={() => setSelectedImageIndex(idx)}
-                    className={`aspect-square rounded-lg overflow-hidden border-2 transition-all ${idx === selectedImageIndex
+                    className={`relative aspect-square rounded-lg overflow-hidden border-2 transition-all ${idx === selectedImageIndex
                       ? 'border-primary ring-2 ring-primary ring-offset-2'
                       : 'border-border hover:border-primary/50'
                       }`}
                   >
-                    <img
+                    <Image
                       src={img}
                       alt={`${product.name} ${idx + 1}`}
-                      className="h-full w-full object-cover"
+                      fill
+                      className="object-cover"
+                      unoptimized
                     />
                   </button>
                 ))}

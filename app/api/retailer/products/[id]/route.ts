@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import mongoose from 'mongoose';
 import connectDB from '@/lib/mongodb';
 import Product from '@/models/Product';
 import { requireRetailer } from '@/middleware/auth';
@@ -12,6 +13,14 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return NextResponse.json(
+        { error: 'Invalid product ID' },
+        { status: 400 }
+      );
+    }
+
     await connectDB();
     const user = requireRetailer(request);
 
@@ -46,6 +55,14 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return NextResponse.json(
+        { error: 'Invalid product ID' },
+        { status: 400 }
+      );
+    }
+
     await connectDB();
     const user = requireRetailer(request);
 
@@ -98,6 +115,14 @@ export async function DELETE(
 ) {
   try {
     const { id } = await params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return NextResponse.json(
+        { error: 'Invalid product ID' },
+        { status: 400 }
+      );
+    }
+
     await connectDB();
     const user = requireRetailer(request);
 

@@ -86,7 +86,7 @@ export function getOrderStatusColor(status: string): string {
     OUT_FOR_DELIVERY: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300',
     DELIVERED: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
   };
-  return colors[status] || 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300';
+  return colors[status] || 'bg-muted text-muted-foreground';
 }
 
 /**
@@ -98,7 +98,7 @@ export function getPaymentStatusColor(status: string): string {
     PAID: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
     FAILED: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300',
   };
-  return colors[status] || 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-300';
+  return colors[status] || 'bg-muted text-muted-foreground';
 }
 
 /**

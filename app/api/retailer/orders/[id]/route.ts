@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
+import mongoose from 'mongoose';
 import connectDB from '@/lib/mongodb';
 import Order from '@/models/Order';
+import '@/models/Customer'; // Ensure Customer model is registered
 import { requireRetailer } from '@/middleware/auth';
 import { ERROR_MESSAGES, SUCCESS_MESSAGES, ORDER_STATUSES } from '@/lib/constants';
 import { z } from 'zod';
@@ -12,6 +14,14 @@ export async function GET(
 ) {
   try {
     const { id } = await params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return NextResponse.json(
+        { error: 'Invalid order ID' },
+        { status: 400 }
+      );
+    }
+
     await connectDB();
     const user = requireRetailer(request);
 
@@ -47,6 +57,14 @@ export async function PUT(
 ) {
   try {
     const { id } = await params;
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return NextResponse.json(
+        { error: 'Invalid order ID' },
+        { status: 400 }
+      );
+    }
+
     await connectDB();
     const user = requireRetailer(request);
 

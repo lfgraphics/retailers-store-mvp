@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiClient } from '@/lib/api-client';
@@ -14,7 +14,7 @@ import Link from 'next/link';
 import { toast } from 'sonner';
 
 export default function EditProductPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = React.use(params);
+  const { id } = use(params);
   const router = useRouter();
   const { user, accessToken, isLoading: authLoading } = useAuth();
   const [formData, setFormData] = useState({
@@ -218,7 +218,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
                             </div>
                           )}
 
-                          <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                          <div className="absolute inset-0 bg-background/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
                             {idx !== coverIndex && (
                               <Button
                                 type="button"

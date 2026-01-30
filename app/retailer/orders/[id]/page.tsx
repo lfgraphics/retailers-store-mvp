@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiClient } from '@/lib/api-client';
@@ -39,7 +39,7 @@ interface Order {
 const ORDER_STATUSES = ['ORDERED', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED', 'CANCELLED'];
 
 export default function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = React.use(params);
+  const { id } = use(params);
   const router = useRouter();
   const { user, accessToken, isLoading: authLoading } = useAuth();
   const [order, setOrder] = useState<Order | null>(null);

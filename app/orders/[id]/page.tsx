@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, use, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiClient } from '@/lib/api-client';
@@ -38,7 +38,7 @@ interface RetailerProfile {
 }
 
 export default function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
-  const { id } = React.use(params);
+  const { id } = use(params);
   const router = useRouter();
   const { user, accessToken, isLoading } = useAuth();
   const [order, setOrder] = useState<Order | null>(null);
@@ -49,6 +49,27 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const [reviewComment, setReviewComment] = useState('');
   const [isSubmittingReview, setIsSubmittingReview] = useState(false);
 
+  const fetchOrder = useCallback(async () => {
+    try {
+      const data = await apiClient.get(`/api/orders/${id}`);
+      setOrder(data.order);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to load order';
+      toast.error(message);
+    } finally {
+      setIsLoadingOrder(false);
+    }
+  }, [id]);
+
+  const fetchRetailerProfile = useCallback(async () => {
+    try {
+      const data = await apiClient.get('/api/retailer/profile');
+      setRetailerProfile(data.profile);
+    } catch (error: unknown) {
+      console.error('Failed to load retailer profile:', error);
+    }
+  }, []);
+
   useEffect(() => {
     if (!isLoading && !user) {
       router.push('/login');
@@ -58,18 +79,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       fetchOrder();
       fetchRetailerProfile();
     }
-  }, [user, isLoading, accessToken]);
-
-  const fetchOrder = async () => {
-    try {
-      const data = await apiClient.get(`/api/orders/${id}`);
-      setOrder(data.order);
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to load order');
-    } finally {
-      setIsLoadingOrder(false);
-    }
-  };
+  }, [user, isLoading, accessToken, router, fetchOrder, fetchRetailerProfile]);
 
   const handleSubmitReview = async () => {
     if (!reviewItem || !order) return;
@@ -86,19 +96,11 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       setReviewItem(null);
       setReviewComment('');
       setReviewRating(5);
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to submit review');
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Failed to submit review';
+      toast.error(message);
     } finally {
       setIsSubmittingReview(false);
-    }
-  };
-
-  const fetchRetailerProfile = async () => {
-    try {
-      const data = await apiClient.get('/api/retailer/profile');
-      setRetailerProfile(data.profile);
-    } catch (error: any) {
-      console.error('Failed to load retailer profile:', error);
     }
   };
 
@@ -302,7 +304,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
       {/* Review Modal */}
       {reviewItem && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/50 backdrop-blur-sm p-4">
           <Card className="w-full max-w-md">
             <CardHeader>
               <CardTitle>Rate {reviewItem.name}</CardTitle>
