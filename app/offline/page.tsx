@@ -9,7 +9,7 @@ export default function OfflinePage() {
           Please check your internet connection and try again.
         </p>
         <button
-          onClick={() => window.location.reload()}
+          onClick={() => window?.location?.reload()}
           className="rounded-lg bg-primary px-6 py-3 text-primary-foreground font-medium hover:bg-primary/90"
         >
           Retry
