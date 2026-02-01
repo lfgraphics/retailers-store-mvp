@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { apiClient } from '@/lib/api-client';
+import { useFilter } from '@/contexts/FilterContext';
 import { NotificationHistory } from '@/components/NotificationHistory';
 import { ThemeToggle } from '@/components/ThemeToggle';
 
@@ -23,6 +24,7 @@ interface RetailerProfile {
 export function Header() {
   const { user, logout } = useAuth();
   const { totalItems } = useCart();
+  const { setIsOpen: setFilterOpen } = useFilter();
   const router = useRouter();
   const [retailer, setRetailer] = useState<RetailerProfile | null>(null);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -95,7 +97,7 @@ export function Header() {
                 <Search className="h-5 w-5" />
               </Button>
             </form>
-            <Button variant="ghost" size="icon" className="text-white hover:bg-white/10" title="Filters">
+            <Button variant="ghost" size="icon" className="text-white hover:bg-white/10" title="Filters" onClick={() => setFilterOpen(true)}>
               <SlidersHorizontal className="h-5 w-5" />
             </Button>
           </div>
@@ -209,7 +211,7 @@ export function Header() {
                   <Search className="h-4 w-4" />
                 </Button>
               </form>
-              <Button variant="ghost" size="icon" className="text-white hover:bg-white/10">
+              <Button variant="ghost" size="icon" className="text-white hover:bg-white/10" onClick={() => setFilterOpen(true)}>
                 <SlidersHorizontal className="h-4 w-4" />
               </Button>
             </div>

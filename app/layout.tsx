@@ -3,8 +3,10 @@ import { Geist, Geist_Mono } from 'next/font/google';
 import './globals.css';
 import { AuthProvider } from '@/contexts/AuthContext';
 import { CartProvider } from '@/contexts/CartContext';
+import { FilterProvider } from '@/contexts/FilterContext';
 import { Toaster } from '@/components/ui/sonner';
 import { Header } from '@/components/Header';
+import { FilterSidebar } from '@/components/FilterSidebar';
 import { ThemeProvider } from '@/components/ThemeProvider';
 
 const geistSans = Geist({
@@ -55,10 +57,12 @@ export default function RootLayout({
         >
           <AuthProvider>
             <CartProvider>
-              <Header />
-              <main className="min-h-screen">
-                {children}
-              </main>
+              <FilterProvider>
+                <Header />
+                <FilterSidebar />
+                <main className="min-h-screen">
+                  {children}
+                </main>
               <footer className="bg-[#212121] text-white py-12">
                 <div className="container mx-auto px-4 grid grid-cols-2 md:grid-cols-4 gap-8">
                   <div>
@@ -108,6 +112,7 @@ export default function RootLayout({
                 </div>
               </footer>
               <Toaster />
+              </FilterProvider>
             </CartProvider>
           </AuthProvider>
         </ThemeProvider>

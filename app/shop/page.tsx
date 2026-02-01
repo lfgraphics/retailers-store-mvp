@@ -14,6 +14,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
+import { useFilter } from '@/contexts/FilterContext';
 import { NotificationPrompt } from '@/components/NotificationPrompt';
 
 interface Product {
@@ -43,6 +44,7 @@ interface RetailerProfile {
 function ShopContent() {
   const { user } = useAuth();
   const { addItem } = useCart();
+  const { filters } = useFilter();
   const router = useRouter();
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -135,11 +137,20 @@ function ShopContent() {
     .sort((a, b) => new Date(b._id.toString()).getTime() - new Date(a._id.toString()).getTime())
     .slice(0, 10);
 
-  const filteredProducts = products.filter(
-    (p) =>
-      p.name.toLowerCase().includes(search.toLowerCase()) ||
-      p.description.toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredProducts = products
+    .filter((p) => {
+      const matchesSearch = p.name.toLowerCase().includes(search.toLowerCase()) ||
+        p.description.toLowerCase().includes(search.toLowerCase());
+      const matchesPrice = p.price >= filters.priceRange[0] && p.price <= filters.priceRange[1];
+      return matchesSearch && matchesPrice;
+    })
+    .sort((a, b) => {
+      if (filters.sortBy === 'price-low') return a.price - b.price;
+      if (filters.sortBy === 'price-high') return b.price - a.price;
+      if (filters.sortBy === 'rating') return b.avgRating - a.avgRating;
+      if (filters.sortBy === 'newest') return new Date(b._id).getTime() - new Date(a._id).getTime();
+      return 0;
+    });
 
   return (
     <div className="min-h-screen bg-background pb-12">
