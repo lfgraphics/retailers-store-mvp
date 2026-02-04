@@ -22,7 +22,7 @@ export async function subscribeToPushNotifications() {
   }
 
   try {
-    const registration = await navigator.serviceWorker.register('/sw-push.js');
+    const registration = await navigator.serviceWorker.register('/service-worker.js');
 
     if (!VAPID_PUBLIC_KEY) {
       if (process.env.NODE_ENV === 'development') {

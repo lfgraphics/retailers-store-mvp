@@ -46,6 +46,12 @@ export default function CheckoutPage() {
         pincode: '',
         landmark: '',
     });
+    
+    // Coupon & Delivery State
+    const [couponInput, setCouponInput] = useState('');
+    const [appliedCoupons, setAppliedCoupons] = useState<any[]>([]);
+    const [baseDeliveryCharge, setBaseDeliveryCharge] = useState(0);
+    const [isApplyingCoupon, setIsApplyingCoupon] = useState(false);
 
     useEffect(() => {
         if (!isLoading && !user) {
@@ -90,10 +96,95 @@ export default function CheckoutPage() {
             const res = await fetch('/api/retailer/settings');
             const data = await res.json();
             setOnlinePaymentEnabled(data.onlinePaymentEnabled || false);
+            setBaseDeliveryCharge(data.defaultDeliveryCharge || 0);
         } catch (error) {
             console.error('Failed to load store settings:', error);
         }
     };
+
+    // Coupon Handlers
+    const handleApplyCoupon = async () => {
+        if (!couponInput.trim()) return;
+        const code = couponInput.trim().toUpperCase();
+
+        if (appliedCoupons.some(c => c.code === code)) {
+            toast.error('Coupon already applied');
+            return;
+        }
+
+        if (appliedCoupons.length >= 2) {
+            toast.error('Maximum 2 coupons allowed');
+            return;
+        }
+
+        setIsApplyingCoupon(true);
+        try {
+            const res = await fetch('/api/coupons/validate', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ code }),
+            });
+            const data = await res.json();
+
+            if (!res.ok) {
+                toast.error(data.error || 'Invalid coupon');
+                return;
+            }
+
+            const newCoupon = data.coupon;
+            
+            // Validate combinations
+            const hasFreeDelivery = appliedCoupons.some(c => c.discountType === 'FREE_DELIVERY');
+            const hasDiscount = appliedCoupons.some(c => c.discountType !== 'FREE_DELIVERY');
+
+            if (newCoupon.discountType === 'FREE_DELIVERY' && hasFreeDelivery) {
+                toast.error('Only one free delivery coupon allowed');
+                return;
+            }
+
+            if (newCoupon.discountType !== 'FREE_DELIVERY' && hasDiscount) {
+                toast.error('Only one discount coupon allowed');
+                return;
+            }
+
+            setAppliedCoupons([...appliedCoupons, newCoupon]);
+            setCouponInput('');
+            toast.success('Coupon applied!');
+        } catch (error) {
+            toast.error('Failed to apply coupon');
+        } finally {
+            setIsApplyingCoupon(false);
+        }
+    };
+
+    const removeCoupon = (code: string) => {
+        setAppliedCoupons(appliedCoupons.filter(c => c.code !== code));
+    };
+
+    // Calculations
+    const deliveryCharge = appliedCoupons.some(c => c.discountType === 'FREE_DELIVERY') 
+        ? 0 
+        : baseDeliveryCharge;
+
+    const calculateDiscount = () => {
+        let discount = 0;
+        const discountCoupon = appliedCoupons.find(c => c.discountType !== 'FREE_DELIVERY');
+        
+        if (discountCoupon) {
+            if (discountCoupon.discountType === 'PERCENTAGE') {
+                discount = (totalPrice * discountCoupon.discountValue) / 100;
+                if (discountCoupon.maxDiscountAmount) {
+                    discount = Math.min(discount, discountCoupon.maxDiscountAmount);
+                }
+            } else {
+                discount = discountCoupon.discountValue;
+            }
+        }
+        return Math.min(discount, totalPrice);
+    };
+
+    const totalDiscount = calculateDiscount();
+    const finalTotal = totalPrice + deliveryCharge - totalDiscount;
 
     const handleNewAddressChange = (e: React.ChangeEvent<HTMLInputElement>) => {
         setNewAddress({ ...newAddress, [e.target.name]: e.target.value });
@@ -130,6 +221,7 @@ export default function CheckoutPage() {
                 })),
                 deliveryAddress: addressToUse,
                 paymentMethod,
+                couponCodes: appliedCoupons.map(c => c.code),
             };
 
             const res = await fetch('/api/orders', {
@@ -230,6 +322,48 @@ export default function CheckoutPage() {
 
                 <div className="grid gap-8 lg:grid-cols-3">
                     <div className="lg:col-span-2 space-y-6">
+                        {/* Coupons Section */}
+                        <Card>
+                            <CardHeader>
+                                <CardTitle>Coupons & Offers</CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <div className="flex gap-2">
+                                    <Input
+                                        placeholder="Enter coupon code"
+                                        value={couponInput}
+                                        onChange={(e) => setCouponInput(e.target.value)}
+                                        disabled={isApplyingCoupon}
+                                    />
+                                    <Button 
+                                        onClick={handleApplyCoupon} 
+                                        disabled={isApplyingCoupon || !couponInput.trim()}
+                                    >
+                                        {isApplyingCoupon ? 'Applying...' : 'Apply'}
+                                    </Button>
+                                </div>
+
+                                {appliedCoupons.length > 0 && (
+                                    <div className="flex flex-wrap gap-2 mt-2">
+                                        {appliedCoupons.map((coupon) => (
+                                            <div 
+                                                key={coupon.code} 
+                                                className="flex items-center gap-2 bg-primary/10 text-primary px-3 py-1 rounded-full text-sm font-medium"
+                                            >
+                                                <span>{coupon.code}</span>
+                                                <button 
+                                                    onClick={() => removeCoupon(coupon.code)}
+                                                    className="hover:text-destructive transition-colors"
+                                                >
+                                                    ×
+                                                </button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </CardContent>
+                        </Card>
+
                         {/* Delivery Address */}
                         <Card>
                             <CardHeader>
@@ -417,16 +551,24 @@ export default function CheckoutPage() {
                                         <span>Subtotal</span>
                                         <span>{formatCurrency(totalPrice)}</span>
                                     </div>
-                                    <div className="flex justify-between text-sm text-muted-foreground">
-                                        <span>Delivery</span>
-                                        <span>FREE</span>
+                                    <div className="flex justify-between text-sm">
+                                        <span>Delivery Charge</span>
+                                        <span className={deliveryCharge === 0 ? 'text-green-600 font-medium' : ''}>
+                                            {deliveryCharge === 0 ? 'FREE' : formatCurrency(deliveryCharge)}
+                                        </span>
                                     </div>
+                                    {totalDiscount > 0 && (
+                                        <div className="flex justify-between text-sm text-green-600 font-medium">
+                                            <span>Discount</span>
+                                            <span>-{formatCurrency(totalDiscount)}</span>
+                                        </div>
+                                    )}
                                 </div>
 
                                 <div className="border-t pt-4">
                                     <div className="flex justify-between text-lg font-bold">
                                         <span>Total</span>
-                                        <span>{formatCurrency(totalPrice)}</span>
+                                        <span>{formatCurrency(finalTotal)}</span>
                                     </div>
                                 </div>
 

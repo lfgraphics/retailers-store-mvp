@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { apiClient } from '@/lib/api-client';
@@ -11,7 +11,8 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
 import Link from 'next/link';
-import { ArrowLeft, Package } from 'lucide-react';
+import { ArrowLeft, Package, Loader2 } from 'lucide-react';
+import { useIntersectionObserver } from '@/hooks/useIntersectionObserver';
 
 interface Order {
   _id: string;
@@ -27,6 +28,34 @@ export default function OrdersPage() {
   const { user, accessToken, isLoading } = useAuth();
   const [orders, setOrders] = useState<Order[]>([]);
   const [isLoadingOrders, setIsLoadingOrders] = useState(true);
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [isFetchingMore, setIsFetchingMore] = useState(false);
+
+  const fetchOrders = useCallback(async (pageToFetch: number, reset: boolean = false) => {
+    try {
+      if (pageToFetch > 1) setIsFetchingMore(true);
+      const data = await apiClient.get(`/api/orders?page=${pageToFetch}&limit=50`);
+      const newOrders = data.orders || [];
+      
+      setOrders(prev => reset ? newOrders : [...prev, ...newOrders]);
+      setHasMore(newOrders.length === 50);
+    } catch (error: any) {
+      toast.error(error.message || 'Failed to load orders');
+    } finally {
+      setIsLoadingOrders(false);
+      setIsFetchingMore(false);
+    }
+  }, []);
+
+  const { ref: loadMoreRef } = useIntersectionObserver({
+    threshold: 0.1,
+    onIntersect: () => {
+      if (hasMore && !isFetchingMore && !isLoadingOrders) {
+        setPage(prev => prev + 1);
+      }
+    },
+  });
 
   useEffect(() => {
     if (!isLoading && !user) {
@@ -34,20 +63,15 @@ export default function OrdersPage() {
       return;
     }
     if (user && accessToken) {
-      fetchOrders();
+      fetchOrders(1, true);
     }
-  }, [user, isLoading, accessToken]);
+  }, [user, isLoading, accessToken, fetchOrders, router]);
 
-  const fetchOrders = async () => {
-    try {
-      const data = await apiClient.get('/api/orders');
-      setOrders(data.orders || []);
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to load orders');
-    } finally {
-      setIsLoadingOrders(false);
+  useEffect(() => {
+    if (page > 1) {
+      fetchOrders(page, false);
     }
-  };
+  }, [page, fetchOrders]);
 
   const getStatusColor = (status: string) => {
     const colors: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
@@ -144,6 +168,11 @@ export default function OrdersPage() {
             ))}
           </div>
         )}
+        
+        {/* Loading Indicator for Infinite Scroll */}
+        <div ref={loadMoreRef} className="py-8 flex justify-center w-full">
+          {isFetchingMore && <Loader2 className="h-8 w-8 animate-spin text-primary" />}
+        </div>
       </div>
     </div>
   );

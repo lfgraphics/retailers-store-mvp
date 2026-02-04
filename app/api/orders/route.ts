@@ -2,25 +2,14 @@ import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import Order from '@/models/Order';
 import Product from '@/models/Product';
-import Customer from '@/models/Customer';
 import Coupon from '@/models/Coupon';
 import { requireCustomer } from '@/middleware/auth';
 import { orderCreationSchema } from '@/lib/validation';
 import { ERROR_MESSAGES, SUCCESS_MESSAGES, PAYMENT_STATUS } from '@/lib/constants';
 import { calculateDiscount } from '@/lib/utils';
-import webpush from 'web-push';
+import { notifyRetailer } from '@/lib/notification-service';
 import Retailer from '@/models/Retailer';
-
-const vapidPublicKey = process.env.VAPID_PUBLIC_KEY || process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY;
-const vapidPrivateKey = process.env.VAPID_PRIVATE_KEY;
-
-if (vapidPublicKey && vapidPrivateKey) {
-    webpush.setVapidDetails(
-        'mailto:support@localstore.com',
-        vapidPublicKey,
-        vapidPrivateKey
-    );
-}
+import Razorpay from 'razorpay';
 
 // GET customer orders
 export async function GET(request: NextRequest) {
@@ -28,16 +17,23 @@ export async function GET(request: NextRequest) {
         await connectDB();
         const user = requireCustomer(request);
 
+        const { searchParams } = new URL(request.url);
+        const page = parseInt(searchParams.get('page') || '1');
+        const limit = parseInt(searchParams.get('limit') || '50');
+        const skip = (page - 1) * limit;
+
         const orders = await Order.find({ customerId: user.userId })
             .sort({ createdAt: -1 })
-            .limit(50);
+            .skip(skip)
+            .limit(limit);
 
         return NextResponse.json({ orders });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('Get orders error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
-        if (error.message === ERROR_MESSAGES.UNAUTHORIZED) {
-            return NextResponse.json({ error: error.message }, { status: 401 });
+        if (errorMessage === ERROR_MESSAGES.UNAUTHORIZED) {
+            return NextResponse.json({ error: errorMessage }, { status: 401 });
         }
 
         return NextResponse.json(
@@ -64,7 +60,17 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        const { items, deliveryAddress, paymentMethod, couponCode } = validation.data;
+        const { items, deliveryAddress, paymentMethod, couponCode, couponCodes: inputCouponCodes } = validation.data;
+
+        // Normalize coupon codes
+        let codesToApply: string[] = [];
+        if (inputCouponCodes && inputCouponCodes.length > 0) {
+            codesToApply = inputCouponCodes;
+        } else if (couponCode) {
+            codesToApply = [couponCode];
+        }
+        // Remove duplicates and normalize
+        codesToApply = [...new Set(codesToApply.map(c => c.toUpperCase()))];
 
         // Validate stock and get product details
         const orderItems = await Promise.all(
@@ -90,66 +96,104 @@ export async function POST(request: NextRequest) {
             })
         );
 
-        // Calculate totals
+        // Calculate item total
         const totalAmount = orderItems.reduce(
             (sum: number, item) => sum + item.price * item.quantity,
             0
         );
 
-        let discountAmount = 0;
+        // Get Store Settings (for delivery charge)
+        const retailerSettings = await Retailer.findOne().select('defaultDeliveryCharge pushSubscriptions');
+        let deliveryCharge = retailerSettings?.defaultDeliveryCharge || 0;
 
-        // Apply coupon if provided
-        if (couponCode) {
-            const coupon = await Coupon.findOne({
-                code: couponCode.toUpperCase(),
+        let discountAmount = 0;
+        const appliedCoupons: any[] = [];
+
+        // Apply coupons if provided
+        if (codesToApply.length > 0) {
+            if (codesToApply.length > 2) {
+                return NextResponse.json(
+                    { error: 'Maximum 2 coupons allowed per order' },
+                    { status: 400 }
+                );
+            }
+
+            const coupons = await Coupon.find({
+                code: { $in: codesToApply },
                 isActive: true,
             });
 
-            if (!coupon) {
+            if (coupons.length !== codesToApply.length) {
                 return NextResponse.json(
-                    { error: ERROR_MESSAGES.INVALID_COUPON },
+                    { error: 'One or more coupons are invalid' },
                     { status: 400 }
                 );
             }
 
-            // Validate coupon
+            // Check coupon combination rules
+            const freeDeliveryCoupons = coupons.filter((c: any) => c.discountType === 'FREE_DELIVERY');
+            const discountCoupons = coupons.filter((c: any) => c.discountType !== 'FREE_DELIVERY');
+
+            if (freeDeliveryCoupons.length > 1) {
+                return NextResponse.json(
+                    { error: 'Only one free delivery coupon allowed' },
+                    { status: 400 }
+                );
+            }
+
+            if (discountCoupons.length > 1) {
+                return NextResponse.json(
+                    { error: 'Only one discount coupon allowed' },
+                    { status: 400 }
+                );
+            }
+
+            // Validate and Apply
             const now = new Date();
-            if (now < coupon.validFrom || now > coupon.validTo) {
-                return NextResponse.json(
-                    { error: 'Coupon has expired' },
-                    { status: 400 }
-                );
+            for (const coupon of coupons) {
+                if (now < coupon.validFrom || now > coupon.validTo) {
+                    return NextResponse.json(
+                        { error: `Coupon ${coupon.code} has expired` },
+                        { status: 400 }
+                    );
+                }
+
+                if (totalAmount < coupon.minOrderAmount) {
+                    return NextResponse.json(
+                        { error: `Coupon ${coupon.code} requires minimum order of ₹${coupon.minOrderAmount}` },
+                        { status: 400 }
+                    );
+                }
+
+                if (coupon.usageLimit && coupon.usedCount >= coupon.usageLimit) {
+                    return NextResponse.json(
+                        { error: `Coupon ${coupon.code} usage limit reached` },
+                        { status: 400 }
+                    );
+                }
+
+                if (coupon.discountType === 'FREE_DELIVERY') {
+                    deliveryCharge = 0;
+                } else {
+                    discountAmount += calculateDiscount(
+                        totalAmount,
+                        coupon.discountType,
+                        coupon.discountValue,
+                        coupon.maxDiscountAmount
+                    );
+                }
+
+                appliedCoupons.push(coupon);
             }
-
-            if (totalAmount < coupon.minOrderAmount) {
-                return NextResponse.json(
-                    {
-                        error: `Minimum order amount ₹${coupon.minOrderAmount} required for this coupon`,
-                    },
-                    { status: 400 }
-                );
-            }
-
-            if (coupon.usageLimit && coupon.usedCount >= coupon.usageLimit) {
-                return NextResponse.json(
-                    { error: 'Coupon usage limit reached' },
-                    { status: 400 }
-                );
-            }
-
-            discountAmount = calculateDiscount(
-                totalAmount,
-                coupon.discountType,
-                coupon.discountValue,
-                coupon.maxDiscountAmount
-            );
-
-            // Increment usage count
-            coupon.usedCount += 1;
-            await coupon.save();
         }
 
-        const finalAmount = totalAmount - discountAmount;
+        // Final Calculation
+        // Ensure discount doesn't exceed total
+        if (discountAmount > totalAmount) {
+            discountAmount = totalAmount;
+        }
+        
+        const finalAmount = totalAmount + deliveryCharge - discountAmount;
 
         // Create order
         const order = new Order({
@@ -157,19 +201,25 @@ export async function POST(request: NextRequest) {
             items: orderItems,
             totalAmount,
             discountAmount,
+            deliveryCharge,
             finalAmount,
-            couponCode: couponCode?.toUpperCase(),
+            couponCodes: codesToApply,
             deliveryAddress,
             paymentMethod,
             paymentStatus: PAYMENT_STATUS.PENDING,
             status: 'ORDERED',
         });
 
+        // Increment usage count for coupons
+        for (const coupon of appliedCoupons) {
+            coupon.usedCount += 1;
+            await coupon.save();
+        }
+
         // If online payment, create Razorpay order
         if (paymentMethod === 'ONLINE') {
-            const Razorpay = require('razorpay');
             const instance = new Razorpay({
-                key_id: process.env.RAZORPAY_KEY_ID,
+                key_id: process.env.RAZORPAY_KEY_ID || '',
                 key_secret: process.env.RAZORPAY_KEY_SECRET,
             });
 
@@ -185,33 +235,20 @@ export async function POST(request: NextRequest) {
 
         await order.save();
 
-        // Notify retailers about the new order via push
+        // Notify retailers about the new order
         try {
-            const retailers = await Retailer.find({
-                'pushSubscriptions.0': { $exists: true },
-            }).select('pushSubscriptions');
-
-            const payload = JSON.stringify({
+            await notifyRetailer({
                 title: 'New Order Received! 📦',
                 body: `Order #${order._id.toString().slice(-6)} placed by ${user.name || 'a customer'}`,
                 url: `/retailer/orders/${order._id}`,
                 icon: '/icons/icon-192x192.png',
             });
-
-            retailers.forEach((retailer: any) => {
-                retailer.pushSubscriptions.forEach((sub: any) => {
-                    webpush.sendNotification(sub, payload).catch(() => {
-                        // Silent fail for individual push delivery in production
-                    });
-                });
-            });
-        } catch (pushErr) {
+        } catch (error) {
             // Log once for total push process failure
-            console.error('Retailer notification process failed');
+            console.error('Retailer notification process failed', error);
         }
 
-        // Reduce stock (Note: For online, maybe should wait for payment? 
-        // But for simplicity in this project, we'll reduce now and increment if failed)
+        // Reduce stock
         await Promise.all(
             items.map(async (item: { productId: string; quantity: number }) => {
                 await Product.findByIdAndUpdate(item.productId, {
@@ -224,15 +261,16 @@ export async function POST(request: NextRequest) {
             message: SUCCESS_MESSAGES.ORDER_PLACED,
             order,
         });
-    } catch (error: any) {
+    } catch (error: unknown) {
         console.error('Create order error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
-        if (error.message === ERROR_MESSAGES.UNAUTHORIZED) {
-            return NextResponse.json({ error: error.message }, { status: 401 });
+        if (errorMessage === ERROR_MESSAGES.UNAUTHORIZED) {
+            return NextResponse.json({ error: errorMessage }, { status: 401 });
         }
 
-        if (error.message.includes('Insufficient stock') || error.message.includes('not found')) {
-            return NextResponse.json({ error: error.message }, { status: 400 });
+        if (errorMessage.includes('Insufficient stock') || errorMessage.includes('not found')) {
+            return NextResponse.json({ error: errorMessage }, { status: 400 });
         }
 
         return NextResponse.json(

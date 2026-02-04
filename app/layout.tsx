@@ -8,6 +8,8 @@ import { Toaster } from '@/components/ui/sonner';
 import { Header } from '@/components/Header';
 import { FilterSidebar } from '@/components/FilterSidebar';
 import { ThemeProvider } from '@/components/ThemeProvider';
+import { InstallPrompt } from '@/components/InstallPrompt';
+import { NotificationPrompt } from '@/components/NotificationPrompt';
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -22,7 +24,6 @@ const geistMono = Geist_Mono({
 export const metadata: Metadata = {
   title: 'Local Store - Shop Online',
   description: 'Your local store, now online. Shop quality products with home delivery.',
-  manifest: '/manifest.json',
   appleWebApp: {
     capable: true,
     statusBarStyle: 'default',
@@ -45,7 +46,6 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <link rel="manifest" href="/manifest.json" />
         <meta name="apple-mobile-web-app-capable" content="yes" />
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased bg-background text-foreground transition-colors duration-300`}>
@@ -60,6 +60,7 @@ export default function RootLayout({
               <FilterProvider>
                 <Header />
                 <FilterSidebar />
+                <InstallPrompt />
                 <main className="min-h-screen">
                   {children}
                 </main>

@@ -1,35 +1,26 @@
 import { NextRequest, NextResponse } from 'next/server';
-import connectDB from '@/lib/mongodb';
 import { seedDatabase } from '@/lib/seed-service';
-import { ERROR_MESSAGES } from '@/lib/constants';
+import connectDB from '@/lib/mongodb';
 
-export async function POST(request: NextRequest) {
+export async function GET(request: NextRequest) {
   try {
+    // Basic security check - in production you might want a secret key
+    // For now, allowing it as requested for development utility
+    const { searchParams } = new URL(request.url);
+    const force = searchParams.get('force') === 'true';
+
     await connectDB();
+    
+    // If force=true, we might want to reset the seeding flag (use with caution)
+    // But seedDatabase service already handles idempotency nicely.
     
     const result = await seedDatabase();
     
-    if (result.alreadySeeded) {
-      return NextResponse.json(
-        { message: result.message },
-        { status: 200 }
-      );
-    }
-    
-    return NextResponse.json(
-      { message: result.message },
-      { status: 201 }
-    );
+    return NextResponse.json(result);
   } catch (error: any) {
-    console.error('Seeding endpoint error:', error);
     return NextResponse.json(
-      { error: ERROR_MESSAGES.SERVER_ERROR, details: error.message },
+      { success: false, error: error.message },
       { status: 500 }
     );
   }
-}
-
-// Also allow GET for convenience, though POST is more standard for state changes
-export async function GET(request: NextRequest) {
-  return POST(request);
 }

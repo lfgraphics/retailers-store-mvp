@@ -26,10 +26,9 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
     isActive: true,
   });
   const [images, setImages] = useState<string[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
+  const [categories, setCategories] = useState<{ _id: string; name: string }[]>([]);
   const [coverIndex, setCoverIndex] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
-  const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
@@ -43,9 +42,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
       const data = await apiClient.get('/api/retailer/categories');
       setCategories(data.categories || []);
     } catch (error) {
-      console.error('Failed to load categories');
-    } finally {
-      setIsLoadingCategories(false);
+      console.error('Failed to load categories', error);
     }
   };
 
@@ -55,7 +52,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
     } else if (!authLoading) {
       router.push('/retailer/login');
     }
-  }, [user, authLoading, accessToken]);
+  }, [user, authLoading, accessToken, id, router]);
 
   const fetchProduct = async () => {
     try {
@@ -69,8 +66,9 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
         isActive: data.product.isActive,
       });
       setImages(data.product.images || []);
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to load product');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load product';
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -129,8 +127,9 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
 
       toast.success('Product updated successfully!');
       router.push('/retailer/products');
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to update product');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update product';
+      toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
@@ -269,7 +268,7 @@ export default function EditProductPage({ params }: { params: Promise<{ id: stri
                   )}
 
                   <p className="text-sm text-muted-foreground">
-                    First image will be used as the product cover. Click "Set Cover" to change.
+                    First image will be used as the product cover. Click &quot;Set Cover&quot; to change.
                   </p>
                 </div>
               </div>

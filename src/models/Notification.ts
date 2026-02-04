@@ -8,6 +8,7 @@ export interface INotification extends Document {
   targetAudience: NotificationAudience;
   targetCustomerIds?: Types.ObjectId[];
   sentAt: Date;
+  read: boolean;
   createdAt: Date;
 }
 
@@ -28,7 +29,7 @@ const NotificationSchema = new Schema<INotification>(
     targetAudience: {
       type: String,
       required: true,
-      enum: ['ALL', 'SPECIFIC'],
+      enum: ['ALL', 'SPECIFIC', 'RETAILER_ADMIN'],
     },
     targetCustomerIds: {
       type: [Schema.Types.ObjectId],
@@ -37,6 +38,10 @@ const NotificationSchema = new Schema<INotification>(
     sentAt: {
       type: Date,
       default: Date.now,
+    },
+    read: {
+      type: Boolean,
+      default: false,
     },
   },
   {

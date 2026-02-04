@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
+import Admin from '@/models/Admin';
 import Retailer from '@/models/Retailer';
 import { comparePassword, generateAccessToken, generateRefreshToken } from '@/lib/auth';
 import { retailerLoginSchema } from '@/lib/validation';
@@ -22,9 +23,9 @@ export async function POST(request: NextRequest) {
 
     const { username, password } = validation.data;
 
-    // Find retailer
-    const retailer = await Retailer.findOne({ username });
-    if (!retailer) {
+    // Find admin user
+    const admin = await Admin.findOne({ username });
+    if (!admin) {
       return NextResponse.json(
         { error: ERROR_MESSAGES.INVALID_CREDENTIALS },
         { status: 401 }
@@ -32,7 +33,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify password
-    const isPasswordValid = await comparePassword(password, retailer.password);
+    const isPasswordValid = await comparePassword(password, admin.password);
     if (!isPasswordValid) {
       return NextResponse.json(
         { error: ERROR_MESSAGES.INVALID_CREDENTIALS },
@@ -40,11 +41,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Get Store Profile (Retailer) for additional info like store name
+    // Assuming singleton store profile
+    const retailer = await Retailer.findOne();
+
     // Generate tokens
     const tokenPayload = {
-      userId: retailer._id.toString(),
-      role: 'retailer' as const,
-      name: retailer.username,
+      userId: admin._id.toString(),
+      role: 'retailer' as const, // Keeping 'retailer' role for compatibility with existing middleware
+      name: admin.name || admin.username,
     };
 
     const accessToken = generateAccessToken(tokenPayload);
@@ -53,11 +58,13 @@ export async function POST(request: NextRequest) {
     // Create response
     const response = NextResponse.json({
       message: SUCCESS_MESSAGES.LOGIN_SUCCESS,
-      isFirstLogin: retailer.isFirstLogin,
+      isFirstLogin: false, // Admin model doesn't track this currently, default to false
       user: {
-        id: retailer._id,
-        username: retailer.username,
-        storeName: retailer.storeName,
+        id: admin._id,
+        username: admin.username,
+        name: admin.name,
+        storeName: retailer?.storeName || 'My Store',
+        role: admin.role,
       },
       accessToken,
       refreshToken,

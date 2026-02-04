@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
 import Notification from '@/models/Notification';
-import { requireRetailer } from '@/middleware/auth';
+import { requireCustomer } from '@/middleware/auth';
 import { ERROR_MESSAGES } from '@/lib/constants';
 
-// GET retailer notification history
 export async function GET(request: NextRequest) {
   try {
     await connectDB();
-    requireRetailer(request);
+    const customer = requireCustomer(request);
 
     // Get excluded IDs from query params
     const { searchParams } = new URL(request.url);
@@ -16,8 +15,11 @@ export async function GET(request: NextRequest) {
 
     const query: any = {
       $or: [
-        { targetAudience: 'RETAILER_ADMIN' },
-        { targetAudience: 'ALL' }
+        { targetAudience: 'ALL' },
+        {
+          targetAudience: 'SPECIFIC',
+          targetCustomerIds: customer.userId
+        }
       ]
     };
 
@@ -25,16 +27,14 @@ export async function GET(request: NextRequest) {
       query._id = { $nin: excludeIds };
     }
 
-    // Fetch notifications sent to this retailer (or all notifications if we don't track sentBy yet)
-    // For this simple project, we'll fetch all notifications marked for ALL or specific targets
     const notifications = await Notification.find(query)
-      .sort({ sentAt: -1 })
+      .sort({ createdAt: -1 })
       .limit(50)
       .lean();
 
     return NextResponse.json({ notifications });
   } catch (error: any) {
-    console.error('Retailer notification history error:', error);
+    console.error('Get notifications error:', error);
     if (error.message === ERROR_MESSAGES.UNAUTHORIZED) {
       return NextResponse.json({ error: error.message }, { status: 401 });
     }

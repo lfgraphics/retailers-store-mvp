@@ -5,6 +5,8 @@ import { getAuthUser, requireRetailer } from '@/middleware/auth';
 import { storeProfileSchema } from '@/lib/validation';
 import { ERROR_MESSAGES } from '@/lib/constants';
 
+export const dynamic = 'force-dynamic';
+
 // GET retailer profile
 export async function GET(request: NextRequest) {
   try {
@@ -13,12 +15,12 @@ export async function GET(request: NextRequest) {
 
     let retailer;
     if (user?.role === 'retailer') {
-      // Full profile for the retailer
-      retailer = await Retailer.findById(user.userId).select('-password');
+      // Full profile for the retailer (Admin user viewing store profile)
+      retailer = await Retailer.findOne();
     } else {
       // Public profile for customers and visitors
       retailer = await Retailer.findOne().select(
-        'storeName storeDescription storeAddress contactPhone contactEmail logo bannerImages onlinePaymentEnabled'
+        'storeName storeDescription storeAddress contactPhone contactEmail logo bannerImages banners onlinePaymentEnabled defaultDeliveryCharge'
       );
     }
 
@@ -30,7 +32,7 @@ export async function GET(request: NextRequest) {
     }
 
     return NextResponse.json({ profile: retailer });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Get retailer profile error:', error);
 
     return NextResponse.json(
@@ -51,14 +53,18 @@ export async function PUT(request: NextRequest) {
     // Validate request
     const validation = storeProfileSchema.safeParse(body);
     if (!validation.success) {
+      console.error('Validation error:', validation.error);
       return NextResponse.json(
         { error: validation.error.issues[0].message },
         { status: 400 }
       );
     }
 
-    const retailer = await Retailer.findByIdAndUpdate(
-      user.userId,
+    console.log('Updating retailer profile for:', user.userId);
+    console.log('Banners update:', validation.data.banners ? `Yes (${validation.data.banners.length} items)` : 'No');
+
+    const retailer = await Retailer.findOneAndUpdate(
+      {}, // Update the singleton store profile
       validation.data,
       { new: true }
     ).select('-password');
@@ -74,11 +80,12 @@ export async function PUT(request: NextRequest) {
       message: 'Profile updated successfully',
       profile: retailer,
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Update retailer profile error:', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
 
-    if (error.message === ERROR_MESSAGES.UNAUTHORIZED) {
-      return NextResponse.json({ error: error.message }, { status: 401 });
+    if (errorMessage === ERROR_MESSAGES.UNAUTHORIZED) {
+      return NextResponse.json({ error: errorMessage }, { status: 401 });
     }
 
     return NextResponse.json(

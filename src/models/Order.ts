@@ -27,7 +27,9 @@ export interface IOrder extends Document {
   totalAmount: number;
   discountAmount: number;
   finalAmount: number;
-  couponCode?: string;
+  couponCode?: string; // Deprecated
+  couponCodes: string[];
+  deliveryCharge: number;
   deliveryAddress: IDeliveryAddress;
   paymentMethod: PaymentMethod;
   paymentStatus: PaymentStatus;
@@ -99,7 +101,16 @@ const OrderSchema = new Schema<IOrder>(
       min: 0,
     },
     couponCode: {
-      type: String,
+      type: String, // Deprecated
+    },
+    couponCodes: {
+      type: [String],
+      default: [],
+    },
+    deliveryCharge: {
+      type: Number,
+      default: 0,
+      min: 0,
     },
     deliveryAddress: {
       type: DeliveryAddressSchema,

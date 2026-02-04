@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -13,7 +13,7 @@ import Link from 'next/link';
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { login, user, isLoading: authLoading } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({
     name: '',
@@ -26,6 +26,16 @@ export default function RegisterPage() {
     pincode: '',
     landmark: '',
   });
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      if (user.role === 'retailer') {
+        router.replace('/retailer/dashboard');
+      } else {
+        router.replace('/shop');
+      }
+    }
+  }, [user, authLoading, router]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
@@ -69,8 +79,9 @@ export default function RegisterPage() {
 
       toast.success(data.message);
       router.push('/shop');
-    } catch (error: any) {
-      toast.error(error.message || 'Registration failed');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Registration failed';
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -203,7 +214,7 @@ export default function RegisterPage() {
           <div className="mt-6 text-center text-sm">
             <p>
               Already have an account?{' '}
-              <Link href="/login" className="text-primary hover:underline font-medium">
+              <Link href="/login" className="text-blue-500 hover:underline font-medium">
                 Login here
               </Link>
             </p>

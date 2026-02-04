@@ -9,6 +9,7 @@ export interface ICoupon extends Document {
   maxDiscountAmount?: number;
   validFrom: Date;
   validTo: Date;
+  isFreeDelivery: boolean;
   isActive: boolean;
   usageLimit?: number;
   usedCount: number;
@@ -28,7 +29,7 @@ const CouponSchema = new Schema<ICoupon>(
     discountType: {
       type: String,
       required: true,
-      enum: ['PERCENTAGE', 'FIXED'],
+      enum: ['PERCENTAGE', 'FIXED', 'FREE_DELIVERY'],
     },
     discountValue: {
       type: Number,
@@ -54,6 +55,10 @@ const CouponSchema = new Schema<ICoupon>(
       type: Date,
       required: true,
     },
+    isFreeDelivery: {
+      type: Boolean,
+      default: false,
+    },
     isActive: {
       type: Boolean,
       default: true,
@@ -76,4 +81,9 @@ const CouponSchema = new Schema<ICoupon>(
 // Indexing is already handled by unique: true in the field definition
 
 
-export default mongoose.models.Coupon || mongoose.model<ICoupon>('Coupon', CouponSchema);
+// Prevent Mongoose model compilation errors in development due to hot reloading
+if (process.env.NODE_ENV !== 'production') {
+  delete mongoose.models.Coupon;
+}
+
+export default (mongoose.models.Coupon || mongoose.model<ICoupon>('Coupon', CouponSchema)) as any;

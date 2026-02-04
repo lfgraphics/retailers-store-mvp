@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -12,10 +12,20 @@ import Link from 'next/link';
 
 export default function CustomerLoginPage() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { login, user, isLoading: authLoading } = useAuth();
   const [phone, setPhone] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      if (user.role === 'retailer') {
+        router.replace('/retailer/dashboard');
+      } else {
+        router.replace('/shop');
+      }
+    }
+  }, [user, authLoading, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -43,8 +53,9 @@ export default function CustomerLoginPage() {
 
       toast.success(data.message);
       router.push('/shop');
-    } catch (error: any) {
-      toast.error(error.message || 'Login failed');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Login failed';
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -88,8 +99,8 @@ export default function CustomerLoginPage() {
           </form>
           <div className="mt-6 text-center text-sm">
             <p>
-              Don't have an account?{' '}
-              <Link href="/register" className="text-primary hover:underline font-medium">
+              Don&apos;t have an account?{' '}
+              <Link href="/register" className="text-blue-500 hover:underline font-medium">
                 Register here
               </Link>
             </p>

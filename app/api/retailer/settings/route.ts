@@ -10,51 +10,69 @@ export async function GET(request: NextRequest) {
     await connectDB();
 
     // Get the first/only retailer's settings
-    const retailer = await Retailer.findOne().select('onlinePaymentEnabled');
+    const retailer = await Retailer.findOne().select('onlinePaymentEnabled defaultDeliveryCharge');
 
     if (!retailer) {
       return NextResponse.json({
         onlinePaymentEnabled: false,
+        defaultDeliveryCharge: 0,
       });
     }
 
     return NextResponse.json({
       onlinePaymentEnabled: retailer.onlinePaymentEnabled || false,
+      defaultDeliveryCharge: retailer.defaultDeliveryCharge || 0,
     });
   } catch (error: any) {
     console.error('Get retailer settings error:', error);
     return NextResponse.json(
-      { onlinePaymentEnabled: false },
+      { onlinePaymentEnabled: false, defaultDeliveryCharge: 0 },
       { status: 200 }
     );
   }
 }
 
 
-// PATCH update settings (online payment toggle)
+// PATCH update settings
 export async function PATCH(request: NextRequest) {
   try {
     await connectDB();
     const user = requireRetailer(request);
 
-    const { onlinePaymentEnabled } = await request.json();
+    const body = await request.json();
+    const updates: any = {};
 
-    if (typeof onlinePaymentEnabled !== 'boolean') {
-      return NextResponse.json(
-        { error: 'onlinePaymentEnabled must be a boolean' },
-        { status: 400 }
-      );
+    if (typeof body.onlinePaymentEnabled === 'boolean') {
+      updates.onlinePaymentEnabled = body.onlinePaymentEnabled;
     }
 
-    const retailer = await Retailer.findByIdAndUpdate(
-      user.userId,
-      { onlinePaymentEnabled },
+    if (typeof body.defaultDeliveryCharge === 'number') {
+        if (body.defaultDeliveryCharge < 0) {
+            return NextResponse.json(
+                { error: 'Delivery charge cannot be negative' },
+                { status: 400 }
+            );
+        }
+        updates.defaultDeliveryCharge = body.defaultDeliveryCharge;
+    }
+
+    if (Object.keys(updates).length === 0) {
+        return NextResponse.json(
+            { error: 'No valid fields to update' },
+            { status: 400 }
+        );
+    }
+
+    // Update the singleton Store Profile
+    const retailer = await Retailer.findOneAndUpdate(
+      {}, // Match any (first) document
+      updates,
       { new: true }
     ).select('-password');
 
     if (!retailer) {
       return NextResponse.json(
-        { error: ERROR_MESSAGES.USER_NOT_FOUND },
+        { error: 'Store profile not found' },
         { status: 404 }
       );
     }
@@ -62,6 +80,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({
       message: 'Settings updated successfully',
       onlinePaymentEnabled: retailer.onlinePaymentEnabled,
+      defaultDeliveryCharge: retailer.defaultDeliveryCharge,
     });
   } catch (error: any) {
     console.error('Update settings error:', error);

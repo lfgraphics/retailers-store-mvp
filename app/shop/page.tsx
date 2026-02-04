@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { ShoppingCart, Search, ChevronLeft, ChevronRight, Package } from 'lucide-react';
+import { ShoppingCart, Search, ChevronLeft, ChevronRight, Package, Loader2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { formatCurrency } from '@/lib/utils';
@@ -16,6 +16,7 @@ import { toast } from 'sonner';
 import { apiClient } from '@/lib/api-client';
 import { useFilter } from '@/contexts/FilterContext';
 import { NotificationPrompt } from '@/components/NotificationPrompt';
+import { useIntersectionObserver } from '@/hooks/useIntersectionObserver';
 
 interface Product {
   _id: string;
@@ -39,6 +40,7 @@ interface RetailerProfile {
   storeDescription: string;
   logo?: string;
   bannerImages: string[];
+  banners?: { desktopUrl: string; mobileUrl: string }[];
 }
 
 function ShopContent() {
@@ -55,21 +57,50 @@ function ShopContent() {
   const [currentBannerIndex, setCurrentBannerIndex] = useState(0);
   const searchParams = useSearchParams();
   const urlSearch = searchParams.get('search') || '';
+  
+  // Pagination State
+  const [page, setPage] = useState(1);
+  const [hasMore, setHasMore] = useState(true);
+  const [isFetchingMore, setIsFetchingMore] = useState(false);
 
-  const fetchProducts = useCallback(async () => {
+  const fetchProducts = useCallback(async (pageToFetch: number, reset: boolean = false) => {
     try {
-      const url = selectedCategory
-        ? `/api/products?category=${encodeURIComponent(selectedCategory)}`
-        : '/api/products';
+      if (pageToFetch > 1) setIsFetchingMore(true);
+      
+      const url = new URL('/api/products', window.location.origin);
+      if (selectedCategory) url.searchParams.set('category', selectedCategory);
+      url.searchParams.set('page', pageToFetch.toString());
+      url.searchParams.set('limit', '50');
+
       const res = await fetch(url);
       const data = await res.json();
-      setProducts(data.products || []);
+      const newProducts = data.products || [];
+      
+      setProducts(prev => reset ? newProducts : [...prev, ...newProducts]);
+      setHasMore(newProducts.length === 50);
     } catch {
       toast.error('Failed to load products');
     } finally {
       setIsLoading(false);
+      setIsFetchingMore(false);
     }
   }, [selectedCategory]);
+
+  const { ref: loadMoreRef } = useIntersectionObserver({
+    threshold: 0.1,
+    onIntersect: () => {
+      if (hasMore && !isFetchingMore && !isLoading && (selectedCategory || search)) {
+        setPage(prev => prev + 1);
+      }
+    },
+  });
+
+  // Reset pagination when category changes
+  useEffect(() => {
+    setPage(1);
+    setIsLoading(true);
+    fetchProducts(1, true);
+  }, [selectedCategory, fetchProducts]);
 
   const fetchCategories = useCallback(async () => {
     try {
@@ -95,15 +126,21 @@ function ShopContent() {
   }, [urlSearch]);
 
   useEffect(() => {
-    fetchProducts();
-    fetchCategories();
-    fetchRetailerProfile();
-  }, [fetchProducts, fetchCategories, fetchRetailerProfile]);
+    if (page > 1) {
+      fetchProducts(page, false);
+    }
+  }, [page, fetchProducts]);
 
   useEffect(() => {
-    if (retailer?.bannerImages?.length && retailer.bannerImages.length > 1) {
+    fetchCategories();
+    fetchRetailerProfile();
+  }, [fetchCategories, fetchRetailerProfile]);
+
+  useEffect(() => {
+    const bannersLength = retailer?.banners?.length || retailer?.bannerImages?.length || 0;
+    if (bannersLength > 1) {
       const interval = setInterval(() => {
-        setCurrentBannerIndex((prev) => (prev + 1) % retailer.bannerImages.length);
+        setCurrentBannerIndex((prev) => (prev + 1) % bannersLength);
       }, 5000);
       return () => clearInterval(interval);
     }
@@ -152,55 +189,60 @@ function ShopContent() {
       return 0;
     });
 
+  const activeBanners = retailer?.banners?.length 
+    ? retailer.banners 
+    : retailer?.bannerImages?.map(img => ({ desktopUrl: img, mobileUrl: img })) || [];
+
   return (
     <div className="min-h-screen bg-background pb-12">
       {/* Hero / Banners Section - Enhanced Carousel */}
-      {retailer?.bannerImages && retailer.bannerImages.length > 0 && (
+      {activeBanners.length > 0 && (
         <section className="container mx-auto px-0 sm:px-4 pt-0 sm:pt-4">
-          <div className="group relative aspect-2/1 sm:aspect-21/9 w-full overflow-hidden sm:rounded-2xl bg-muted shadow-sm sm:shadow-xl">
-            {retailer.bannerImages.map((banner: string, idx: number) => (
+          <div className="group relative w-full overflow-hidden sm:rounded-2xl bg-muted shadow-sm sm:shadow-xl aspect-2/1 sm:aspect-21/9 lg:aspect-auto lg:h-[40vh] 2xl:h-[30vh]">
+            {activeBanners.map((banner, idx) => (
               <div
                 key={idx}
                 className={`absolute inset-0 transition-all duration-700 ease-in-out ${idx === currentBannerIndex ? 'opacity-100 scale-100' : 'opacity-0 scale-105'
                   }`}
               >
-                <Image
-                  src={banner}
-                  alt={`Promotion ${idx + 1}`}
-                  fill
-                  className="object-cover"
-                  unoptimized
-                  priority={idx === 0}
-                />
+                <picture className="block h-full w-full">
+                  <source media="(max-width: 1023px)" srcSet={banner.mobileUrl} />
+                  <source media="(min-width: 1024px)" srcSet={banner.desktopUrl} />
+                  <img
+                    src={banner.desktopUrl}
+                    alt={`Promotion ${idx + 1}`}
+                    className="h-full w-full object-cover"
+                  />
+                </picture>
                 <div className="absolute inset-0 bg-linear-to-t from-black/40 via-transparent to-transparent" />
               </div>
             ))}
 
             {/* Carousel Navigation Buttons */}
-            {retailer.bannerImages.length > 1 && (
+            {activeBanners.length > 1 && (
               <>
                 <button
-                  onClick={() => setCurrentBannerIndex((prev) => (prev - 1 + retailer.bannerImages.length) % retailer.bannerImages.length)}
-                  className="absolute left-4 top-1/2 -translate-y-1/2 rounded-full bg-background/20 p-2 text-foreground backdrop-blur-md transition-all hover:bg-background/40 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                  onClick={() => setCurrentBannerIndex((prev) => (prev - 1 + activeBanners.length) % activeBanners.length)}
+                  className="absolute left-4 top-1/2 -translate-y-1/2 rounded-full bg-background/20 p-2 text-foreground backdrop-blur-md transition-all hover:bg-background/40 opacity-0 group-hover:opacity-100 focus:opacity-100 z-10"
                 >
                   <ChevronLeft className="h-6 w-6" />
                 </button>
                 <button
-                  onClick={() => setCurrentBannerIndex((prev) => (prev + 1) % retailer.bannerImages.length)}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full bg-background/20 p-2 text-foreground backdrop-blur-md transition-all hover:bg-background/40 opacity-0 group-hover:opacity-100 focus:opacity-100"
+                  onClick={() => setCurrentBannerIndex((prev) => (prev + 1) % activeBanners.length)}
+                  className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full bg-background/20 p-2 text-foreground backdrop-blur-md transition-all hover:bg-background/40 opacity-0 group-hover:opacity-100 focus:opacity-100 z-10"
                 >
                   <ChevronRight className="h-6 w-6" />
                 </button>
 
                 {/* Enhanced Carousel Indicators */}
-                <div className="absolute bottom-6 left-1/2 flex -translate-x-1/2 gap-2.5">
-                  {retailer.bannerImages.map((_banner: string, idx: number) => (
+                <div className="absolute bottom-6 left-1/2 flex -translate-x-1/2 gap-2.5 z-10">
+                  {activeBanners.map((_, idx) => (
                     <button
                       key={idx}
                       onClick={() => setCurrentBannerIndex(idx)}
                       className={`h-2.5 rounded-full transition-all duration-300 ${idx === currentBannerIndex
-                        ? 'bg-foreground w-8'
-                        : 'bg-foreground/40 hover:bg-foreground/60 w-2.5'
+                        ? 'bg-white w-8'
+                        : 'bg-white/40 hover:bg-white/60 w-2.5'
                         }`}
                     />
                   ))}
@@ -216,7 +258,7 @@ function ShopContent() {
         {isLoading ? (
           <div className="space-y-8">
             {[1, 2].map((i) => (
-              <div key={i} className="bg-white p-4 rounded-lg border shadow-sm">
+              <div key={i} className="bg-card p-4 rounded-lg border shadow-sm">
                 <div className="flex justify-between items-center mb-6">
                   <Skeleton className="h-8 w-48" />
                   <Skeleton className="h-9 w-24" />
@@ -239,7 +281,7 @@ function ShopContent() {
           </div>
         ) : selectedCategory || search ? (
           /* Filtered/Search Results View */
-          <div className="bg-white p-4 rounded-lg border shadow-sm">
+          <div className="bg-card p-4 rounded-lg border shadow-sm">
             <div className="flex items-center justify-between mb-4 sm:mb-6 border-b pb-4">
               <h2 className="text-base sm:text-2xl font-bold text-foreground capitalize">
                 {search ? `Results for "${search}"` : selectedCategory}
@@ -266,13 +308,20 @@ function ShopContent() {
                 ))}
               </div>
             )}
+            
+            {/* Loading Indicator for Infinite Scroll */}
+            {(selectedCategory || search) && (
+              <div ref={loadMoreRef} className="py-8 flex justify-center w-full">
+                {isFetchingMore && <Loader2 className="h-8 w-8 animate-spin text-primary" />}
+              </div>
+            )}
           </div>
         ) : (
           /* Grouped Categories View (Home) */
           <>
             {groupedProducts.length > 0 ? (
               groupedProducts.map((group) => (
-                <div key={group._id} className="bg-white p-4 rounded-lg border shadow-sm">
+                <div key={group._id} className="bg-card p-4 rounded-lg border shadow-sm">
                   <div className="flex items-center justify-between mb-4 sm:mb-6 border-b pb-4">
                     <h2 className="text-base sm:text-xl font-bold text-foreground">
                       Best of {group.name}
@@ -298,7 +347,7 @@ function ShopContent() {
 
             {/* Recent Products Section */}
             {recentProducts.length > 0 ? (
-              <div className="bg-white p-4 rounded-lg border shadow-sm">
+              <div className="bg-card p-4 rounded-lg border shadow-sm">
                 <div className="flex items-center justify-between mb-4 sm:mb-6 border-b pb-4">
                   <h2 className="text-base sm:text-xl font-bold text-foreground">
                     Newly Added Products
@@ -312,7 +361,7 @@ function ShopContent() {
                 </div>
               </div>
             ) : groupedProducts.length === 0 && (
-              <div className="text-center py-24 bg-white rounded-lg border shadow-sm">
+              <div className="text-center py-24 bg-card rounded-lg border shadow-sm">
                 <Package className="mx-auto h-12 w-12 text-muted-foreground/50 mb-4" />
                 <p className="text-xl font-medium">No products available yet</p>
                 <p className="text-muted-foreground mt-2">Check back later for new arrivals!</p>
@@ -330,7 +379,7 @@ function ShopContent() {
 function ProductCard({ product, handleAddToCart }: { product: Product, handleAddToCart: (p: Product) => void }) {
   return (
     <Card className="group overflow-hidden border border-border/50 bg-card hover:shadow-lg transition-all duration-300 rounded-lg flex flex-col">
-      <Link href={`/products/${product._id}`} className="relative aspect-3/4 sm:aspect-square bg-white overflow-hidden flex items-center justify-center p-2">
+      <Link href={`/products/${product._id}`} className="relative aspect-3/4 sm:aspect-square bg-card overflow-hidden flex items-center justify-center p-2">
         {product.images[0] ? (
           <Image
             src={product.images[0]}

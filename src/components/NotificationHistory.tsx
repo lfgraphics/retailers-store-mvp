@@ -7,10 +7,13 @@ import { apiClient } from '@/lib/api-client';
 import { format } from 'date-fns';
 import Link from 'next/link';
 import { toast } from 'sonner';
+import { useAuth } from '@/contexts/AuthContext';
 
 export function NotificationHistory({ onClose }: { onClose: () => void }) {
+    const { user } = useAuth();
     const [notifications, setNotifications] = useState<any[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [dismissedIds, setDismissedIds] = useState<string[]>([]);
 
     useEffect(() => {
@@ -19,14 +22,39 @@ export function NotificationHistory({ onClose }: { onClose: () => void }) {
             setDismissedIds(JSON.parse(saved));
         }
         fetchNotifications();
-    }, []);
+    }, [user]);
 
     const fetchNotifications = async () => {
+        setIsLoading(true);
+        setError(null);
         try {
-            const data = await apiClient.get('/api/notifications/history');
-            setNotifications(data.notifications || []);
+            let endpoint = '/api/notifications/history';
+            
+            if (user?.role === 'customer') {
+                endpoint = '/api/customer/notifications';
+            } else if (user?.role === 'retailer') {
+                endpoint = '/api/retailer/notifications/history';
+            }
+
+            // console.log('Fetching notifications from:', endpoint);
+            
+            // Send dismissed IDs to exclude them from fetch
+            const queryParams = new URLSearchParams();
+            if (dismissedIds.length > 0) {
+                queryParams.append('exclude', dismissedIds.join(','));
+            }
+            
+            const fullEndpoint = `${endpoint}?${queryParams.toString()}`;
+            const data = await apiClient.get(fullEndpoint);
+            
+            if (data && data.notifications) {
+                setNotifications(data.notifications);
+            } else {
+                setNotifications([]);
+            }
         } catch (error) {
             console.error('Failed to fetch notification history');
+            setError('Failed to load notifications');
         } finally {
             setIsLoading(false);
         }
@@ -44,13 +72,20 @@ export function NotificationHistory({ onClose }: { onClose: () => void }) {
 
     return (
         <div className="absolute right-0 top-full mt-2 w-80 sm:w-96 z-50 animate-in fade-in zoom-in-95 duration-200">
-            <Card className="shadow-xl border-primary/20">
+            <Card className="shadow-xl border-primary/20 bg-background text-foreground">
                 <CardHeader className="flex flex-row items-center justify-between py-3 px-4 border-b">
                     <CardTitle className="text-sm font-bold flex items-center gap-2">
                         <Bell className="h-4 w-4 text-primary" />
                         Notifications
                     </CardTitle>
                     <div className="flex items-center gap-4">
+                        <button 
+                            onClick={fetchNotifications}
+                            className="text-[10px] font-medium text-muted-foreground hover:text-primary"
+                            title="Refresh"
+                        >
+                            Refresh
+                        </button>
                         {visibleNotifications.length > 0 && (
                             <button
                                 onClick={handleClearAll}
@@ -67,6 +102,18 @@ export function NotificationHistory({ onClose }: { onClose: () => void }) {
                 <CardContent className="p-0 max-h-[400px] overflow-y-auto">
                     {isLoading ? (
                         <div className="p-8 text-center text-sm text-muted-foreground">Loading...</div>
+                    ) : error ? (
+                        <div className="p-8 text-center text-sm text-destructive">
+                            {error}
+                            <div className="mt-2">
+                                <button 
+                                    onClick={fetchNotifications}
+                                    className="text-xs underline hover:text-destructive/80"
+                                >
+                                    Try Again
+                                </button>
+                            </div>
+                        </div>
                     ) : visibleNotifications.length === 0 ? (
                         <div className="p-8 text-center text-sm text-muted-foreground">
                             No new notifications.

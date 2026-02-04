@@ -248,7 +248,7 @@ export default function RetailerOrders() {
                         </div>
                         <div>
                           <p className="text-sm text-muted-foreground">Customer</p>
-                          <p className="font-medium">{order.customerId.name} • {order.customerId.email}</p>
+                          <p className="font-medium">{order.customerId?.name || 'Guest'} • {order.customerId?.email || 'No email'}</p>
                         </div>
                       </div>
                       <div className="mt-3">

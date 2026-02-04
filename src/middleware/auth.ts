@@ -1,5 +1,5 @@
 import { NextRequest } from 'next/server';
-import { verifyAccessToken, TokenPayload } from '@/lib/auth';
+import { verifyAccessToken, verifyRefreshToken, TokenPayload } from '@/lib/auth';
 import { ERROR_MESSAGES } from '@/lib/constants';
 
 export interface AuthRequest extends NextRequest {
@@ -17,7 +17,7 @@ export function getAuthUser(request: NextRequest): TokenPayload | null {
 
     if (authHeader && authHeader.startsWith('Bearer ')) {
       token = authHeader.substring(7);
-      console.log('Auth Debug: Bearer token found in header');
+      // console.log('Auth Debug: Bearer token found in header');
     }
 
     // If no Authorization header, try cookies
@@ -27,15 +27,29 @@ export function getAuthUser(request: NextRequest): TokenPayload | null {
     }
 
     if (!token) {
-      console.log('Auth Debug: No token found. Headers:', JSON.stringify(Object.fromEntries(request.headers.entries())));
+      // console.log('Auth Debug: No token found. Headers:', JSON.stringify(Object.fromEntries(request.headers.entries())));
       return null;
     }
 
     const payload = verifyAccessToken(token);
-    console.log('Auth Debug: Verification success for user:', payload.userId);
+    // console.log('Auth Debug: Verification success for user:', payload.userId);
     return payload;
   } catch (error: any) {
-    console.error('Auth middleware: Token verification failed:', error.message);
+    console.error('Auth middleware: Access token verification failed:', error.message);
+
+    // Fallback: Check for valid Refresh Token in cookies
+    // This allows seamless experience if access token expired but refresh token is valid
+    const refreshToken = request.cookies.get('refreshToken')?.value;
+    if (refreshToken) {
+      try {
+        const payload = verifyRefreshToken(refreshToken);
+        console.log('Auth middleware: Valid refresh token found, allowing access via fallback.');
+        return payload;
+      } catch (refreshError) {
+        console.error('Auth middleware: Refresh token verification also failed');
+      }
+    }
+
     return null;
   }
 }

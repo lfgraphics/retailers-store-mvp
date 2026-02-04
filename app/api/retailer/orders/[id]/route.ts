@@ -50,6 +50,8 @@ export async function GET(
   }
 }
 
+import { notifyCustomer } from '@/lib/notification-service';
+
 // PUT update order status (Retailer)
 export async function PUT(
   request: NextRequest,
@@ -102,6 +104,17 @@ export async function PUT(
     });
 
     await order.save();
+
+    // Notify Customer
+    try {
+      await notifyCustomer(order.customerId, {
+        title: 'Order Update',
+        body: `Your order status has been updated to ${status.toLowerCase().replace('_', ' ')}`,
+        url: '/orders',
+      });
+    } catch (err) {
+      console.error('Failed to notify customer:', err);
+    }
 
     return NextResponse.json({
       message: SUCCESS_MESSAGES.ORDER_UPDATED,

@@ -6,7 +6,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { apiClient } from '@/lib/api-client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Package, ShoppingCart, Users, Settings, LogOut, Bell } from 'lucide-react';
+import { Package, ShoppingCart, Users, Settings, LogOut, Bell, Tag } from 'lucide-react';
 import Link from 'next/link';
 import { toast } from 'sonner';
 import { NotificationPrompt } from '@/components/NotificationPrompt';
@@ -161,6 +161,22 @@ export default function RetailerDashboard() {
                 <CardContent>
                   <p className="text-sm text-muted-foreground">
                     Organize products into categories
+                  </p>
+                </CardContent>
+              </Card>
+            </Link>
+
+            <Link href="/retailer/coupons">
+              <Card className="transition-colors hover:bg-accent cursor-pointer">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Tag className="h-5 w-5" />
+                    Manage Coupons
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <p className="text-sm text-muted-foreground">
+                    Create and manage discount coupons
                   </p>
                 </CardContent>
               </Card>

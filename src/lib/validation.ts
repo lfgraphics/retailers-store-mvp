@@ -60,7 +60,8 @@ export const orderCreationSchema = z.object({
     landmark: z.string().optional(),
   }),
   paymentMethod: z.enum(['COD', 'ONLINE']),
-  couponCode: z.string().optional(),
+  couponCode: z.string().optional(), // Deprecated
+  couponCodes: z.array(z.string()).optional(),
 });
 
 // Review Schema
@@ -74,7 +75,7 @@ export const reviewSchema = z.object({
 // Coupon Schema
 export const couponSchema = z.object({
   code: z.string().min(3, 'Coupon code must be at least 3 characters'),
-  discountType: z.enum(['PERCENTAGE', 'FIXED']),
+  discountType: z.enum(['PERCENTAGE', 'FIXED', 'FREE_DELIVERY']),
   discountValue: z.number().min(0, 'Discount value must be positive'),
   minOrderAmount: z.number().min(0, 'Minimum order amount must be non-negative'),
   maxDiscountAmount: z.number().min(0).optional(),
@@ -101,4 +102,8 @@ export const storeProfileSchema = z.object({
   contactEmail: z.string().email('Invalid email address').optional(),
   logo: z.string().optional(),
   bannerImages: z.array(z.string()).optional(),
+  banners: z.array(z.object({
+    desktopUrl: z.string(),
+    mobileUrl: z.string()
+  })).optional(),
 });

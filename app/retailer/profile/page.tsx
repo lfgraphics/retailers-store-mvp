@@ -15,7 +15,7 @@ import { toast } from 'sonner';
 
 export default function ProfilePage() {
   const router = useRouter();
-  const { user, accessToken, isLoading: authLoading } = useAuth();
+  const { user, isLoading: authLoading } = useAuth();
   const [formData, setFormData] = useState({
     storeName: '',
     storeDescription: '',
@@ -24,7 +24,9 @@ export default function ProfilePage() {
     contactEmail: '',
     logo: '',
     bannerImages: [] as string[],
+    banners: [] as { desktopUrl: string; mobileUrl: string }[],
     onlinePaymentEnabled: false,
+    defaultDeliveryCharge: 0,
   });
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -35,11 +37,11 @@ export default function ProfilePage() {
     } else if (!authLoading) {
       router.push('/retailer/login');
     }
-  }, [user, authLoading]);
+  }, [user, authLoading, router]);
 
   const fetchProfile = async () => {
     try {
-      const data = await apiClient.get('/api/retailer/profile');
+      const data = await apiClient.get('/api/retailer/profile', { cache: 'no-store' });
       setFormData({
         storeName: data.profile?.storeName || '',
         storeDescription: data.profile?.storeDescription || '',
@@ -48,11 +50,14 @@ export default function ProfilePage() {
         contactEmail: data.profile?.contactEmail || '',
         logo: data.profile?.logo || '',
         bannerImages: data.profile?.bannerImages || [],
+        banners: data.profile?.banners || [],
         onlinePaymentEnabled: data.profile?.onlinePaymentEnabled || false,
+        defaultDeliveryCharge: data.profile?.defaultDeliveryCharge || 0,
       });
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error('Fetch profile error:', error);
-      toast.error(error.message || 'Failed to load profile');
+      const errorMessage = error instanceof Error ? error.message : 'Failed to load profile';
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -80,10 +85,58 @@ export default function ProfilePage() {
     });
   };
 
-  const removeBanner = (index: number) => {
+  const handleBannerUpload = (e: React.ChangeEvent<HTMLInputElement>, index: number, type: 'desktop' | 'mobile') => {
+    const files = e.target.files;
+    if (!files || !files[0]) return;
+
+    const file = files[0];
+    
+    // Validation
+    const maxSize = type === 'desktop' ? 500 * 1024 : 200 * 1024; // 500KB for desktop, 200KB for mobile
+    if (file.size > maxSize) {
+      toast.error(`File size too large. Max allowed: ${type === 'desktop' ? '500KB' : '200KB'}`);
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      toast.error('Invalid file type. Please upload an image.');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = () => {
+      const base64 = reader.result as string;
+      setFormData(prev => {
+        const newBanners = [...prev.banners];
+        if (!newBanners[index]) {
+          newBanners[index] = { desktopUrl: '', mobileUrl: '' };
+        }
+        if (type === 'desktop') {
+          newBanners[index].desktopUrl = base64;
+        } else {
+          newBanners[index].mobileUrl = base64;
+        }
+        return { ...prev, banners: newBanners };
+      });
+      toast.success(`${type === 'desktop' ? 'Desktop' : 'Mobile'} banner uploaded`);
+    };
+    reader.onerror = () => {
+      toast.error('Failed to read file');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const addBannerSlot = () => {
     setFormData(prev => ({
       ...prev,
-      bannerImages: prev.bannerImages.filter((_, i) => i !== index)
+      banners: [...prev.banners, { desktopUrl: '', mobileUrl: '' }]
+    }));
+  };
+
+  const removeBannerSlot = (index: number) => {
+    setFormData(prev => ({
+      ...prev,
+      banners: prev.banners.filter((_, i) => i !== index)
     }));
   };
 
@@ -94,26 +147,28 @@ export default function ProfilePage() {
     try {
       await apiClient.put('/api/retailer/profile', formData);
       toast.success('Profile updated successfully!');
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to update profile');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update profile';
+      toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handlePaymentToggle = async () => {
+  const handleSettingsUpdate = async (updates: Partial<typeof formData>) => {
     try {
       await apiClient.fetch('/api/retailer/settings', {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ onlinePaymentEnabled: !formData.onlinePaymentEnabled }),
+        body: JSON.stringify(updates),
       });
-      setFormData({ ...formData, onlinePaymentEnabled: !formData.onlinePaymentEnabled });
-      toast.success('Payment settings updated');
-    } catch (error: any) {
-      toast.error(error.message || 'Failed to update payment settings');
+      setFormData(prev => ({ ...prev, ...updates }));
+      toast.success('Settings updated successfully');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Failed to update settings';
+      toast.error(errorMessage);
     }
   };
 
@@ -177,33 +232,78 @@ export default function ProfilePage() {
 
                 {/* Banners Section */}
                 <div className="space-y-3">
-                  <Label>Banner Images</Label>
-                  <div className="grid grid-cols-2 gap-4">
-                    {formData.bannerImages.map((banner, idx) => (
-                      <div key={idx} className="relative aspect-video rounded-lg overflow-hidden group">
-                        <img src={banner} alt={`Banner ${idx + 1}`} className="h-full w-full object-cover" />
+                  <div className="flex items-center justify-between">
+                    <Label>Responsive Banners</Label>
+                    <Button type="button" variant="outline" size="sm" onClick={addBannerSlot}>
+                      Add Banner Slide
+                    </Button>
+                  </div>
+                  
+                  <div className="space-y-6">
+                    {formData.banners.map((banner, idx) => (
+                      <div key={idx} className="p-4 border rounded-lg bg-card relative">
                         <button
                           type="button"
-                          onClick={() => removeBanner(idx)}
-                          className="absolute top-2 right-2 p-1 bg-destructive text-destructive-foreground rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => removeBannerSlot(idx)}
+                          className="absolute top-2 right-2 p-1 text-destructive hover:bg-destructive/10 rounded-full transition-colors"
                         >
                           <X className="h-4 w-4" />
                         </button>
+                        
+                        <h4 className="text-sm font-medium mb-3">Slide {idx + 1}</h4>
+                        
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          {/* Desktop Banner */}
+                          <div className="space-y-2">
+                            <Label className="text-xs text-muted-foreground">Desktop (1920x600)</Label>
+                            <label className="aspect-1920/600 rounded-lg border-2 border-dashed flex items-center justify-center bg-muted overflow-hidden relative group cursor-pointer hover:bg-muted/80 transition-colors">
+                              {banner.desktopUrl ? (
+                                <img src={banner.desktopUrl} alt="Desktop" className="h-full w-full object-cover" />
+                              ) : (
+                                <div className="flex flex-col items-center text-muted-foreground pointer-events-none">
+                                  <Upload className="h-6 w-6 mb-1" />
+                                  <span className="text-[10px]">Upload Desktop</span>
+                                </div>
+                              )}
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => handleBannerUpload(e, idx, 'desktop')}
+                                className="hidden"
+                              />
+                            </label>
+                          </div>
+
+                          {/* Mobile Banner */}
+                          <div className="space-y-2">
+                            <Label className="text-xs text-muted-foreground">Mobile (768x432)</Label>
+                            <label className="aspect-768/432 rounded-lg border-2 border-dashed flex items-center justify-center bg-muted overflow-hidden relative group cursor-pointer hover:bg-muted/80 transition-colors">
+                              {banner.mobileUrl ? (
+                                <img src={banner.mobileUrl} alt="Mobile" className="h-full w-full object-cover" />
+                              ) : (
+                                <div className="flex flex-col items-center text-muted-foreground pointer-events-none">
+                                  <Upload className="h-6 w-6 mb-1" />
+                                  <span className="text-[10px]">Upload Mobile</span>
+                                </div>
+                              )}
+                              <input
+                                type="file"
+                                accept="image/*"
+                                onChange={(e) => handleBannerUpload(e, idx, 'mobile')}
+                                className="hidden"
+                              />
+                            </label>
+                          </div>
+                        </div>
                       </div>
                     ))}
-                    <label className="aspect-video rounded-lg border-2 border-dashed flex flex-col items-center justify-center bg-muted cursor-pointer hover:bg-accent transition-colors">
-                      <Upload className="h-6 w-6 text-muted-foreground mb-2" />
-                      <span className="text-xs font-medium">Add Banner</span>
-                      <Input
-                        type="file"
-                        accept="image/*"
-                        multiple
-                        onChange={(e) => handleImageUpload(e, 'bannerImages')}
-                        className="hidden"
-                      />
-                    </label>
+                    
+                    {formData.banners.length === 0 && (
+                      <div className="text-center py-8 text-muted-foreground text-sm border-2 border-dashed rounded-lg">
+                        No banners added. Click &quot;Add Banner Slide&quot; to start.
+                      </div>
+                    )}
                   </div>
-                  <p className="text-xs text-muted-foreground">These banners will be displayed in your store's carousel.</p>
                 </div>
 
                 <div className="space-y-4 pt-4 border-t">
@@ -278,9 +378,10 @@ export default function ProfilePage() {
 
           <Card>
             <CardHeader>
-              <CardTitle>Payment Settings</CardTitle>
+              <CardTitle>Store Settings</CardTitle>
             </CardHeader>
-            <CardContent>
+            <CardContent className="space-y-6">
+              {/* Payment Settings */}
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-medium">Online Payments (Razorpay)</p>
@@ -290,10 +391,34 @@ export default function ProfilePage() {
                 </div>
                 <Button
                   variant={formData.onlinePaymentEnabled ? 'default' : 'outline'}
-                  onClick={handlePaymentToggle}
+                  onClick={() => handleSettingsUpdate({ onlinePaymentEnabled: !formData.onlinePaymentEnabled })}
                 >
                   {formData.onlinePaymentEnabled ? 'Enabled' : 'Disabled'}
                 </Button>
+              </div>
+
+              <div className="border-t pt-4">
+                <div className="space-y-2">
+                  <Label htmlFor="deliveryCharge">Default Delivery Charge (₹)</Label>
+                  <div className="flex gap-2">
+                    <Input
+                      id="deliveryCharge"
+                      type="number"
+                      min="0"
+                      value={formData.defaultDeliveryCharge}
+                      onChange={(e) => setFormData(prev => ({ ...prev, defaultDeliveryCharge: Number(e.target.value) }))}
+                      placeholder="0"
+                    />
+                    <Button 
+                      onClick={() => handleSettingsUpdate({ defaultDeliveryCharge: formData.defaultDeliveryCharge })}
+                    >
+                      Save
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    This amount will be added to all orders unless a free delivery coupon is applied.
+                  </p>
+                </div>
               </div>
             </CardContent>
           </Card>

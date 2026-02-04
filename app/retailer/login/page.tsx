@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { Button } from '@/components/ui/button';
@@ -11,10 +11,20 @@ import { toast } from 'sonner';
 
 export default function RetailerLoginPage() {
   const router = useRouter();
-  const { login } = useAuth();
+  const { login, user, isLoading: authLoading } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!authLoading && user) {
+      if (user.role === 'retailer') {
+        router.replace('/retailer/dashboard');
+      } else {
+        router.replace('/shop');
+      }
+    }
+  }, [user, authLoading, router]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -46,8 +56,9 @@ export default function RetailerLoginPage() {
       } else {
         router.push('/retailer/dashboard');
       }
-    } catch (error: any) {
-      toast.error(error.message || 'Login failed');
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : 'Login failed';
+      toast.error(errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -91,7 +102,7 @@ export default function RetailerLoginPage() {
             <p>Default credentials: Admin / 123</p>
             <p className="mt-2">
               Customer?{' '}
-              <a href="/login" className="text-primary hover:underline">
+              <a href="/login" className="text-blue-500 hover:underline">
                 Login here
               </a>
             </p>
