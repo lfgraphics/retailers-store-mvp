@@ -1,10 +1,6 @@
 import mongoose, { Schema, Document } from 'mongoose';
-import { hashPassword } from '@/lib/auth';
 
 export interface IRetailer extends Document {
-  username: string;
-  password: string;
-  isFirstLogin: boolean;
   storeName: string;
   storeDescription: string;
   storeAddress: string;
@@ -22,20 +18,6 @@ export interface IRetailer extends Document {
 
 const RetailerSchema = new Schema<IRetailer>(
   {
-    username: {
-      type: String,
-      required: true,
-      unique: true,
-      default: 'Admin',
-    },
-    password: {
-      type: String,
-      required: true,
-    },
-    isFirstLogin: {
-      type: Boolean,
-      default: true,
-    },
     storeName: {
       type: String,
       default: 'My Store',
@@ -91,15 +73,6 @@ const RetailerSchema = new Schema<IRetailer>(
     timestamps: true,
   }
 );
-
-// Hash password before saving
-RetailerSchema.pre('save', async function (this: any) {
-  if (!this.isModified('password')) {
-    return;
-  }
-
-  this.password = await hashPassword(this.password);
-});
 
 // Prevent Mongoose model compilation errors in development due to hot reloading
 if (process.env.NODE_ENV !== 'production') {

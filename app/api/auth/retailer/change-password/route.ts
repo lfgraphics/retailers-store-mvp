@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import connectDB from '@/lib/mongodb';
-import Retailer from '@/models/Retailer';
+import Admin from '@/models/Admin';
 import { requireRetailer } from '@/middleware/auth';
 import { comparePassword, generateAccessToken, generateRefreshToken } from '@/lib/auth';
 import { passwordChangeSchema } from '@/lib/validation';
@@ -26,9 +26,9 @@ export async function POST(request: NextRequest) {
 
     const { currentPassword, newPassword } = validation.data;
 
-    // Find retailer
-    const retailer = await Retailer.findById(user.userId);
-    if (!retailer) {
+    // Find admin user
+    const admin = await Admin.findById(user.userId);
+    if (!admin) {
       return NextResponse.json(
         { error: ERROR_MESSAGES.USER_NOT_FOUND },
         { status: 404 }
@@ -36,7 +36,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verify current password
-    const isPasswordValid = await comparePassword(currentPassword, retailer.password);
+    const isPasswordValid = await comparePassword(currentPassword, admin.password);
     if (!isPasswordValid) {
       return NextResponse.json(
         { error: ERROR_MESSAGES.INVALID_CREDENTIALS },
@@ -44,15 +44,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Update password and first login flag
-    retailer.password = newPassword;
-    retailer.isFirstLogin = false;
-    await retailer.save();
+    // Update password
+    admin.password = newPassword;
+    await admin.save();
 
     // Generate new tokens
     const tokenPayload = {
-      userId: retailer._id.toString(),
-      role: 'retailer' as const,
+      userId: admin._id.toString(),
+      role: 'retailer' as const, // Keeping 'retailer' role for compatibility
+      name: admin.name || admin.username,
     };
 
     const accessToken = generateAccessToken(tokenPayload);
